@@ -1,0 +1,13 @@
+[project]
+name = "cs2-money-round"
+version = "0.1.0"
+description = "Explainable CS2 full-buy feasibility and economy simulation"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+cs2-money-round = "cs2_money_round.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

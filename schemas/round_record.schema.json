@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/BabaStardust/CS2_Money_Round/blob/main/schemas/round_record.schema.json",
+  "title": "CS2 full-buy training record v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "match_id",
+    "game_build",
+    "rules_id",
+    "round_number",
+    "enemy_team_id",
+    "phase",
+    "observation",
+    "ground_truth"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "match_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "game_build": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rules_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "round_number": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "enemy_team_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "phase": {
+      "const": "before_buy"
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "own_side",
+        "own_score",
+        "enemy_score",
+        "enemy_loss_level",
+        "previous_round_enemy_deaths"
+      ],
+      "properties": {
+        "own_side": {
+          "enum": [
+            "T",
+            "CT",
+            null
+          ]
+        },
+        "own_score": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "enemy_score": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "enemy_loss_level": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 4
+        },
+        "previous_round_enemy_deaths": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "screenshot_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "ground_truth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "team"
+      ],
+      "properties": {
+        "team": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "side",
+            "loss_level",
+            "players"
+          ],
+          "properties": {
+            "side": {
+              "enum": [
+                "T",
+                "CT"
+              ]
+            },
+            "loss_level": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "players": {
+              "type": "array",
+              "minItems": 5,
+              "maxItems": 5,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "cash",
+                  "rifle",
+                  "armor",
+                  "helmet"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "cash": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "rifle": {
+                    "enum": [
+                      null,
+                      "ak47",
+                      "m4a4",
+                      "m4a1_s"
+                    ]
+                  },
+                  "armor": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "helmet": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "net_spend_by_player": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "team": {
+    "side": "T",
+    "loss_level": 1,
+    "players": [
+      {
+        "id": "p1",
+        "cash": 800
+      },
+      {
+        "id": "p2",
+        "cash": 800
+      },
+      {
+        "id": "p3",
+        "cash": 800
+      },
+      {
+        "id": "p4",
+        "cash": 800
+      },
+      {
+        "id": "p5",
+        "cash": 800
+      }
+    ]
+  },
+  "rounds": [
+    {
+      "outcome": {
+        "winner": "CT",
+        "reason": "elimination",
+        "t_deaths": 5
+      },
+      "actions": [
+        {
+          "player_id": "p1",
+          "spent": 800,
+          "kill_income": 0,
+          "died": true,
+          "end_rifle": null,
+          "end_armor": 0
+        },
+        {
+          "player_id": "p2",
+          "spent": 800,
+          "kill_income": 0,
+          "died": true,
+          "end_rifle": null,
+          "end_armor": 0
+        },
+        {
+          "player_id": "p3",
+          "spent": 800,
+          "kill_income": 0,
+          "died": true,
+          "end_rifle": null,
+          "end_armor": 0
+        },
+        {
+          "player_id": "p4",
+          "spent": 800,
+          "kill_income": 0,
+          "died": true,
+          "end_rifle": null,
+          "end_armor": 0
+        },
+        {
+          "player_id": "p5",
+          "spent": 800,
+          "kill_income": 0,
+          "died": true,
+          "end_rifle": null,
+          "end_armor": 0
+        }
+      ]
+    }
+  ]
+}

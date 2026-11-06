@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "match_id": "synthetic-example-only",
+  "game_build": "unverified-example",
+  "rules_id": "competitive-baseline-v1-unverified",
+  "round_number": 2,
+  "enemy_team_id": "team-b",
+  "phase": "before_buy",
+  "observation": {
+    "own_side": "CT",
+    "own_score": 1,
+    "enemy_score": 0,
+    "enemy_loss_level": 2,
+    "previous_round_enemy_deaths": [
+      "p1",
+      "p2",
+      "p3",
+      "p4",
+      "p5"
+    ]
+  },
+  "ground_truth": {
+    "team": {
+      "side": "T",
+      "loss_level": 2,
+      "players": [
+        {
+          "id": "p1",
+          "cash": 1900,
+          "rifle": null,
+          "armor": 0,
+          "helmet": false
+        },
+        {
+          "id": "p2",
+          "cash": 1900,
+          "rifle": null,
+          "armor": 0,
+          "helmet": false
+        },
+        {
+          "id": "p3",
+          "cash": 1900,
+          "rifle": null,
+          "armor": 0,
+          "helmet": false
+        },
+        {
+          "id": "p4",
+          "cash": 1900,
+          "rifle": null,
+          "armor": 0,
+          "helmet": false
+        },
+        {
+          "id": "p5",
+          "cash": 1900,
+          "rifle": null,
+          "armor": 0,
+          "helmet": false
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "scenarios": [
+    {
+      "weight": 3,
+      "team": {
+        "side": "T",
+        "loss_level": 1,
+        "players": [
+          {
+            "id": "p1",
+            "cash": 14150
+          },
+          {
+            "id": "p2",
+            "cash": 650
+          },
+          {
+            "id": "p3",
+            "cash": 650
+          },
+          {
+            "id": "p4",
+            "cash": 650
+          },
+          {
+            "id": "p5",
+            "cash": 650
+          }
+        ]
+      }
+    },
+    {
+      "weight": 1,
+      "team": {
+        "side": "T",
+        "loss_level": 1,
+        "players": [
+          {
+            "id": "p1",
+            "cash": 600
+          },
+          {
+            "id": "p2",
+            "cash": 3350
+          },
+          {
+            "id": "p3",
+            "cash": 3350
+          },
+          {
+            "id": "p4",
+            "cash": 3350
+          },
+          {
+            "id": "p5",
+            "cash": 3350
+          }
+        ]
+      }
+    }
+  ]
+}
