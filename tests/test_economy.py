@@ -4,7 +4,7 @@ import random
 import unittest
 from dataclasses import replace
 
-from cs2_money_round.buy import BuyTarget, armor_cost, estimate, evaluate
+from cs2_money_round.buy import FULL_BUY_TARGET, BuyTarget, armor_cost, estimate, evaluate
 from cs2_money_round.model import Player, Rules, Team
 from cs2_money_round.simulation import Action, Outcome, reset_half, settle
 
@@ -51,6 +51,11 @@ class BuyTests(unittest.TestCase):
         for i in range(2, 5):
             ps[i] = replace(ps[i], rifle='ak47')
         self.assertTrue(evaluate(replace(t, players=tuple(ps)))['full_buy_possible'])
+
+    def test_project_full_buy_thresholds(self):
+        for side, minimum in [('T', 3700), ('CT', 3900)]:
+            self.assertTrue(evaluate(team(minimum, side), target=FULL_BUY_TARGET)['full_buy_possible'])
+            self.assertFalse(evaluate(team(minimum - 1, side), target=FULL_BUY_TARGET)['full_buy_possible'])
 
     def test_helmet_upgrade_and_damaged_armor(self):
         target = BuyTarget(helmet=True)

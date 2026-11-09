@@ -1,138 +1,209 @@
-# CS2_Money_Round
+# CS2 Money Round – kann der Gegner diese Runde voll kaufen?
 
-Wie wahrscheinlich können alle fünf Gegner diese Runde mit AK/M4 und Rüstung antreten?
+CAS MLOps Projektarbeit: drei Pipelines (Feature, Training, Inference) mit Hopsworks als
+Featurestore und Model Registry. Während der Kaufphase macht man einen Screenshot vom
+Scoreboard. Ein Vision-Modell liest ihn aus, und das Modell schätzt die Wahrscheinlichkeit,
+dass das **gegnerische Team** einen **Full Buy** kaufen kann.
 
-Der erste Prototyp enthält eine Full-Buy-Prüfung, einen Economy-Rundensimulator
-und eine Auswertung gewichteter Szenarien. Er läuft lokal als Python-CLI ohne
-Laufzeitabhängigkeiten. Screenshot-Erkennung, Demo-Import und ein trainiertes
-ML-Modell sind noch nicht implementiert.
+```
+Demos (.dem) ──► Feature Pipeline ──► round_buy_state (FG) ──► Training Pipeline ──► full_buy_predictor (Registry)
+                        │                                                                │
+                        └──────────► buy_rate_history (FG, online) ◄──┐                  │
+                                                                       │                  ▼
+Screenshot ──► Vision-Modell ──► RT + Match-Aggregate ──────────► Inference Pipeline ──► P(Full Buy möglich)
+```
 
-## Start
+## Daten
 
-Python 3.11 oder neuer, im Projektordner:
+- **Quelle:** eigene CS2-Matches (Premier, MR12), zum Download angeboten auf Leetify
+  (Links auf `replayNNN.valve.net`), als `.dem.bz2` gespeichert.
+- **Stand:** 23 Matches vom 16.10. bis 06.11.2026 auf 7 Maps. Das ergibt 1'020 Team-Runden,
+  davon 882 im Modellumfang.
+- **Parser:** [`demoparser2`](https://github.com/LaihoE/demoparser) 0.42.0. Pro Runde liest
+  er den Zustand beim Event `round_start` (Beginn der Kaufphase) sowie Rundenende, Kills und
+  Bomb-Plants.
+- **Event Time:** Upload-Zeit der Demo bei Valve (HTTP `Last-Modified`, ungefähr das Matchende).
+  Sie wird in `data/raw/demos/upload_times.csv` geführt.
+- **Historisch / aktuell:** Training mit den abgeschlossenen Matches. Die Inferenz nutzt
+  einen Screenshot aus einem laufenden Match. Mangels laufender Matches beim Prüfen dient
+  ein Demo-Screenshot als Ersatz.
+- Demos und Screenshots enthalten Spielernamen und liegen deshalb **nicht im Repo**
+  (`data/` steht in `.gitignore`).
+
+Der Import trennt die Spalten streng nach Herkunft, damit kein verstecktes Wissen in die
+Features gelangt:
+
+| Präfix | Bedeutung | Verwendung |
+|---|---|---|
+| `obs_*` | live auf dem Scoreboard sichtbar (Score, Rundenhistorie, Kills/Deaths) | Features |
+| `gt_*` | versteckte Wahrheit aus der Demo (Geld, gespeicherte Waffen, Rüstung) | nur Label |
+| `post_*` | was nach der Kaufphase getragen wurde | nur Analyse |
+
+## Target
+
+`full_buy_possible` (0/1) bezieht sich auf ein Team zu Beginn der Kaufphase. Er ist 1, wenn
+alle fünf Spieler mit dem vorhandenen Geld eine Rifle (AK-47, M4A4 oder M4A1-S) **und**
+Kevlar mit Helm haben können.
+
+- Ein Neukauf kostet T **$3'700** und CT **$3'900**.
+- Gespeicherte Rifles und Rüstung zählen mit.
+- Spieler dürfen einander Waffen droppen, Rüstung aber nicht.
+
+Berechnet wird das von `cs2_money_round.buy.evaluate` mit `FULL_BUY_TARGET`. Pistolenrunden
+(1, 13), Overtime und Runden mit weniger als fünf Spielern sind ausgeschlossen. Die
+Label-Rate beträgt 59,5 %.
+
+Gemeint ist, ob ein Full Buy *möglich* ist, nicht ob er tatsächlich gekauft wurde. Nur 17,5 %
+der Team-Runden mit möglichem Full Buy enden die Kaufphase mit fünf Rifles und Rüstung, weil
+Teams auch AWP, Utility oder Force Buys wählen.
+
+## Features
+
+Alle Features stammen aus Werten, die ein Spieler während der Kaufphase sehen kann. Eine
+einzige Funktion (`cs2_money_round.features.compute_features`) rechnet sie für das Training
+und die Inferenz, damit beide Seiten identisch sind.
+
+| Feature | Art | Quelle bei der Inferenz | Bedeutung |
+|---|---|---|---|
+| `round_in_half` | RT | Screenshot (Score) | Runde in der Halbzeit (2–12) |
+| `is_ct` | RT | Screenshot | Gegner ist CT (CT-Rifle ist teurer) |
+| `score_team`, `score_opp` | RT | Screenshot | aktueller Spielstand aus Gegnersicht |
+| `prev_round_won` | RT | Screenshot (Rundenhistorie) | Gegner hat die letzte Runde gewonnen |
+| `prev_reason_bomb/defuse/time` | RT | Screenshot (Rundenhistorie) | wie die letzte Runde endete (Plant/Defuse bringen T-Geld) |
+| `loss_streak` | AGG (Runden) | Rundenhistorie | Niederlagen in Folge |
+| `loss_bonus_level` | AGG (Runden) | Rundenhistorie | Loss-Bonus-Stufe 0–4 nach Valve-Regel |
+| `wins_last_3` | AGG (Runden) | Rundenhistorie | Siege in den letzten drei Runden der Halbzeit |
+| `deaths_per_round` | AGG (Runden) | Summe Deaths auf dem Scoreboard | Tode pro bisheriger Runde |
+| `kill_death_diff` | AGG (Runden) | Summe Kills − Deaths | Kill-Bilanz (Kill-Prämien) |
+| `hist_full_buy_rate` | AGG (Matches) | **Featurestore** `buy_rate_history` | historische Quote «Full Buy möglich» je Seite und Loss-Bonus-Stufe über frühere Matches |
+
+Im Training wird `hist_full_buy_rate` *point-in-time* berechnet: Jedes Match sieht nur Matches
+mit früherer Event Time. Das eigene Match zählt nicht mit, damit das Label nicht durchsickert.
+Geglättet wird mit einem Prior von 50 % und dem Gewicht von 10 Runden.
+
+## Modell
+
+Das Modell ist eine logistische Regression mit Standardisierung (scikit-learn). Sie liefert
+eine kalibrierte Wahrscheinlichkeit, die die Inferenz als Konfidenz ausgibt.
+
+Die Daten sind zeitlich nach ganzen Matches geteilt: Train sind die 18 ältesten Matches
+(693 Zeilen), Test die 5 neuesten (189 Zeilen).
+
+| Metrik (Test) | Modell | Baseline |
+|---|---|---|
+| Accuracy | 0,767 | 0,598 (immer «möglich») |
+| ROC-AUC | 0,848 | 0,5 |
+| Brier Score | 0,160 | 0,240 (Train-Rate als Konstante) |
+
+Die stärksten Koeffizienten sind `prev_round_won`, `wins_last_3` und `loss_bonus_level`.
+`hist_full_buy_rate` trägt fast nichts bei, weil die Loss-Bonus-Stufe dieselbe Information
+schon enthält. Das Feature bleibt drin, weil es den Weg «aggregiertes Feature aus dem
+Featurestore bei der Inferenz» zeigt.
+
+## Pipelines
+
+| Pipeline | Datei | Schritte |
+|---|---|---|
+| Feature | `pipelines/feature_pipeline.py` | 1. Demos parsen, inkrementell: Cache je Demo in `data/interim/rounds/` · 2. Features engineeren · 3. DataFrame mit Label · 4./5. Feature Groups `round_buy_state` (PK `match_id, round_number, team_side`, Event Time `match_time`) und `buy_rate_history` (PK `team_side, loss_bonus_level`, online) anlegen und befüllen |
+| Training | `pipelines/training_pipeline.py` | 1. FG laden · 2. Feature View `full_buy_fv` · 3. Training Dataset mit zeitlichem Split per `train_test_split` · 4. Training und Evaluation gegen die Baseline · 5. `joblib` lokal speichern, dann `full_buy_predictor` in die Model Registry |
+| Inference | `pipelines/inference_pipeline.py` | 1. Screenshot per Vision-Modell lesen, sonst gespeicherte Lesung oder manuelle Eingabe · 2. Feature View `buy_rate_fv` holen und neueste `hist_full_buy_rate` per Key laden · 3. neueste Modellversion aus der Registry · 4. P(Full Buy möglich) für das Gegnerteam |
+
+Namen und Versionen aller Feature Groups, Views und des Modells stehen an einer Stelle:
+`cs2_money_round/specs.py`.
+
+**Screenshot → Features:**
+
+- Das Gegnerteam ist das Team ohne hervorgehobene Zeile. Die hervorgehobene Zeile ist der
+  eigene Spieler.
+- Die Rundenhistorie wird beim Seitenwechsel zur Halbzeit auf das Team umgerechnet.
+- Geld zeigt das Scoreboard live nur fürs eigene Team. Darum ist Geld nie ein Feature.
+- Bei einem Demo-Screenshot ist das Geld der Gegner sichtbar. Die Pipeline zeigt es dann als
+  reine Kontrolle an.
+
+**Vision-Modell (austauschbar)** über `VISION_PROVIDER`:
+
+- `anthropic`: Claude über die API, mit strukturierter Ausgabe nach `ScoreboardReading`.
+- `openai_compatible`: lokales Modell, z. B. oMLX, LM Studio oder Ollama, über
+  `VISION_BASE_URL`.
+- `claude_cli`: Entwicklung ohne API-Key über `claude -p`.
+
+Alle drei liefern dasselbe Pydantic-Schema (`cs2_money_round/vision/schema.py`).
+
+## Setup und Ausführen
+
+Voraussetzungen: Python 3.12 (Hopsworks verlangt < 3.14) und
+[uv](https://docs.astral.sh/uv/). Alle Abhängigkeiten sind exakt in `uv.lock` festgehalten.
 
 ```bash
-python -m cs2_money_round evaluate examples/full_buy.json
-python -m cs2_money_round simulate examples/pistol_loss.json
-python -m cs2_money_round estimate examples/scenarios.json
-python -m unittest discover -s tests -v
+git clone git@github.com:BabaStardust/CS2_Money_Round.git && cd CS2_Money_Round
+uv sync                           # legt .venv mit Python 3.12 an
+cp .env.example .env              # HOPSWORKS_API_KEY, HOPSWORKS_PROJECT, Vision-Provider eintragen
+uv run python tools/setup_hopsworks.py   # Projekt anlegen/prüfen (einmalig)
 ```
 
-Optional: `uv sync`, danach steht auch `uv run cs2-money-round` zur Verfügung.
+Demos: `.dem` oder `.dem.bz2` nach `data/raw/demos/` legen. Optional gehört in
+`data/raw/demos/upload_times.csv` (`datei,last_modified`) die Upload-Zeit. Fehlt sie, dient
+die Dateizeit als Ersatz.
 
-## Full-Buy-Definition
-
-- Alle fünf Spieler haben eine AK-47, M4A4 oder M4A1-S und mindestens einen
-  Rüstungspunkt. Auch eine auf der Gegenseite aufgehobene Rifle zählt.
-- Standardmässig genügt Kevlar. Helm und volle Rüstung sind konfigurierbar.
-- Vorhandene Rifles können im Team verteilt werden. Neue Waffen können von
-  Mitspielern bezahlt und gedroppt werden; Geld und Rüstung sind nicht übertragbar.
-- Das Modell prüft finanzielle Machbarkeit während einer verfügbaren Kaufphase,
-  ohne Einschränkungen durch Position, abgelaufene Kaufzeit oder individuelle
-  Loadouts. Es prognostiziert keine tatsächliche Kaufentscheidung.
-- Jede Spieler-Geldsumme wird einzeln geprüft. Das Gesamtgeld allein genügt nicht.
-- AWP, FAMAS, Galil und andere Waffen erfüllen die bewusst enge Definition nicht.
-  Im Eingabeformat bedeutet `rifle: null` deshalb **keine passende Rifle**.
-
-Im JSON kann `target` ergänzt werden:
-
-```json
-{"min_armor": 100, "helmet": true, "reserve": 1000}
+```bash
+uv run python pipelines/feature_pipeline.py --dry-run   # nur rechnen, Vorschau als CSV
+uv run python pipelines/feature_pipeline.py             # Feature Groups befüllen
+uv run python pipelines/training_pipeline.py            # Modell trainieren + registrieren
+uv run python pipelines/inference_pipeline.py data/screenshots/runde.png
+uv run python pipelines/inference_pipeline.py --reading data/inference/runde.reading.json --history WeLtWd
+uv run python pipelines/inference_pipeline.py --team T --history WeWeLbLe --kills 21 --deaths 23   # ohne Screenshot
 ```
 
-`reserve` ist Geld, das jeder ausgerüstete Spieler nach dem Kauf mindestens
-übrig haben muss. Es ist eine Budgetreserve, keine simulierte Utility-Ausrüstung.
-Beim Standardziel ohne Helm kostet der Neukauf im Startprofil $3.350 als T und
-$3.550 als CT. Für eine Komfortschwelle von $4.500 bzw. $4.900 setzt man `reserve`
-auf die Differenz zum jeweiligen Neukaufpreis. Bei gespeichertem Equipment muss
-nur die fehlende Ausrüstung plus Reserve finanziert werden.
+`FEATURE_STORE=local` schaltet ohne Hopsworks auf einen lokalen Ersatz um, und zwar für alle
+drei Pipelines gleich:
 
-`evaluate` liefert `full_buy_possible` und `max_equipped_players`. Bei einem
-unvollständigen Buy beschreiben die Kosten/Kapazitäten die ausgewählte grösste
-machbare Spielergruppe. `equipped_player_ids` ist eine machbare Gruppe, keine
-Vorhersage darüber, wer tatsächlich kauft. Es gibt noch keinen Drop-Aktionsplan.
+- Feature Groups werden als Parquet unter `data/featurestore/` gespeichert.
+- Modelle landen versioniert unter `models/registry/`.
 
-## Runden simulieren
+Tests: `uv run python -m unittest discover -s tests -v`
 
-Ein Simulationsdokument enthält `team` vor der Kaufphase und eine Liste `rounds`.
-Jede Runde benötigt ein `outcome` und genau eine `Action` pro Spieler:
+## Reflexion und Limitationen
 
-- `spent`: tatsächliche Nettoausgaben nach Rückerstattungen, inklusive Drops an
-  andere Spieler. Kaufende und tragende Spieler sind nicht zwingend dieselben.
-- `kill_income`: Summe der waffenabhängigen Kill-Prämien. Die Zuordnung von
-  Kill-Waffen zu Prämien übernimmt später der Demo-Adapter.
-- `died`, `end_rifle`, `end_armor`, `end_helmet`: Zustand am Rundenende. So werden
-  gerettete und aufgehobene Waffen ohne erfundene Käufe übernommen.
-- `outcome`: Sieger, Grund (`elimination`, `timeout`, `explosion`, `defuse`),
-  Plant-Status, gegebenenfalls Akteur-IDs und Anzahl gestorbener Terroristen.
+- **Hopsworks noch nicht live verifiziert.**
+  - Der Free Tier erlaubt ein Projekt pro Account. Das bestehende Konto trägt schon die
+    Lichess-Projektarbeit.
+  - Ein neuer Account liess sich am 09.11.2026 nicht anlegen: Die Registrierung hing in einer
+    Endlosschleife.
+  - Die Hopsworks-Anbindung (`cs2_money_round/store.py`, `HopsworksStore`) nutzt dieselben
+    Aufrufe wie die funktionierende Lichess-Arbeit.
+  - Alle drei Pipelines sind bisher nur mit `FEATURE_STORE=local` Ende-zu-Ende gelaufen.
+  - *Stand wird nachgeführt, sobald der Account steht.*
+- **Wenig Daten.**
+  - Es sind 23 Matches aus einem Spielerkreis und mehrheitlich Nuke und Dust2.
+  - Das Testset umfasst nur 5 Matches, die Metriken schwanken entsprechend.
+  - Mehr Demos (FACEIT, HLTV) würden helfen.
+- **«Möglich» ≠ «gekauft».** Für die eigene Taktik zählt, ob der Gegner kaufen *kann*. Ob er
+  tatsächlich kauft, sagt das Modell nicht vorher.
+- **Rundenhistorie auf dem Screenshot.**
+  - Bisher ist erst ein Screenshot geprüft, aus Runde 2 einer Demo, in zwei Läufen.
+  - Geld, Kills, Deaths und Assists hat das Vision-Modell beide Male richtig gelesen.
+  - Die kleine Symbolleiste der Rundenhistorie hat es nur in einem der zwei Läufe erkannt.
+  - Ohne vollständige Historie bricht die Inferenz mit klarer Meldung ab. Die Historie lässt
+    sich dann mit `--history` nachreichen.
+  - Screenshots späterer Runden mit langer Historie sind noch zu prüfen.
+  - Für diesen Screenshot sagt das Modell 55 % «möglich», laut Demo war es nicht möglich: Ein
+    T-Spieler hatte nur $3'400. Runde 2 nach gewonnener Pistolenrunde ist ein typischer
+    Grenzfall.
+- **Regelprofil.**
+  - Preise und Loss-Bonus stammen aus einem Startprofil (`Rules`, Valve-Stand 2025).
+  - Sonderfälle fehlen: Teamkills, Suizide, Disconnects und Kaufzeit-Ende.
+  - Overtime wird nicht vorhergesagt.
+- **Demo-Import-Fehler gefunden und behoben.**
+  - Die erste Version ordnete Score, Kills und Rundenhistorie nach der *Seite* zu. Nach dem
+    Halbzeitwechsel war das falsch.
+  - Jetzt geschieht die Zuordnung über die Spieler-IDs und wird gegen `team_rounds_total`
+    der Demo geprüft (0 Abweichungen).
+  - Ein Regressionstest liegt in `tests/test_pipeline.py`.
+- **Event Time** ist die Upload-Zeit der Demo und nicht die exakte Rundenzeit. Für den
+  Split nach ganzen Matches reicht das.
 
-Der Simulator berechnet Siegprämie, Loss-Bonus, Bombenprämien, CT-Teamprämie,
-Geldlimit und den Zustand für die nächste Runde. Jeder Betrag steht im Ledger.
-T-Überlebende bei einer Niederlage durch Zeitablauf erhalten keinen Loss-Bonus.
+## Weiteres
 
-`loss_bonus_before_round` ist die mögliche Auszahlung bei Verlust der gerade
-simulierten Runde. `loss_bonus_received` ist die tatsächliche persönliche
-Auszahlung. `loss_bonus_if_next_round_lost` beschreibt die darauffolgende Runde.
-
-Für den regulären Seitenwechsel wird in der ersten Runde der neuen Hälfte
-`"reset_half": true` gesetzt. Der Wechsel erfolgt ausdrücklich, nicht automatisch
-nach zwölf Einträgen: eine Datei darf auch mitten im Match beginnen. Overtime,
-Disconnect-Kompensation, Teamkills, Suizidstrafen und Käufe während der laufenden
-Runde sind noch nicht modelliert. Der Simulator validiert grundlegende
-Konsistenz, rekonstruiert aber keinen vollständigen Kampf- oder Kaufablauf.
-
-## Wahrscheinlichkeiten
-
-`estimate` prüft vollständige alternative Teamzustände mit positiven Gewichten.
-Die Full-Buy-Wahrscheinlichkeit ist die normalisierte Gewichtsmasse der Zustände,
-in denen fünf Rifle-plus-Rüstung-Ausrüstungen finanzierbar sind.
-
-Die Gewichte im Beispiel sind **synthetisch und von Hand gesetzt**. Die Ausgabe
-ist keine trainierte, kalibrierte Gegnerprognose. Der Simulator generiert auch
-noch keine möglichen Zustände aus Scoreboard-Beobachtungen. Später muss ein
-Inferenzmodell diese Zustände und Gewichte anhand der sichtbaren Historie liefern.
-
-## Dataset-Vertrag
-
-`schemas/round_record.schema.json` beschreibt ein Trainingsbeispiel pro Gegnerteam
-und Runde; `examples/round_record.json` zeigt ein synthetisches Beispiel.
-JSONL eignet sich für viele solcher Datensätze. Das Schema ist ein Vertrag für
-den zukünftigen Import, noch kein fertiger Dataset-Importer.
-
-- `match_id`, `game_build`, `rules_id`, Runde und stabile Team-/Spieler-IDs erhalten.
-- Zielzeitpunkt: **vor der Kaufphase**. Geld und gespeicherte Ausrüstung müssen
-  zu diesem Zeitpunkt gehören; Daten nach dem Kauf nicht damit vermischen.
-- `observation`: nur zu diesem Zeitpunkt öffentlich verfügbare Informationen.
-  `null` bedeutet unbekannt; eine leere Todesliste bedeutet bekannte null Tode.
-- `ground_truth`: tatsächliche Gegner-Geldstände und gespeicherte Ausrüstung aus
-  abgeschlossenen Demos. Optional tatsächliche Nettoausgaben der anschliessenden
-  Kaufphase, ausschliesslich als Zielwerte/Analysewerte.
-- Versteckte Gegnerwerte und spätere Ereignisse dürfen keine Modellmerkmale werden.
-- Training/Test nach **ganzen Matches**, zusätzlich zeitlich und nach Spielversion
-  trennen. Der spätere Full-Buy-Zielwert wird durch `evaluate` berechnet.
-- Das Schema prüft nicht alle fachlichen Beziehungen: Import muss unter anderem
-  eindeutige Spieler-IDs, Teamzuordnung, Regeln und Zeitpunkte zusätzlich prüfen.
-
-## Regeln und Validierungsstand
-
-`Rules` ist ein überschreibbares Startprofil
-`competitive-baseline-v1-unverified`. Im CLI-Dokument kann ein `rules`-Objekt
-beliebige Felder überschreiben; bei Regeländerungen auch eine eigene `id` setzen.
-Das Profil ist **noch nicht gegen Demos der aktuellen Spielversion validiert**.
-Unbekannte Spezialfälle sollen vor einem Einsatz für echte Prognosen abgeglichen
-werden. Die Tests belegen das implementierte Profil, nicht dessen Aktualität.
-
-Quellen zur Nachprüfung:
-
-- [Valve: Loss-Bonus, 13.03.2019](https://blog.counter-strike.net/it/2019/03/23521/)
-- [Valve: Begrenzung und Absenkung vom Maximum, 14.05.2019](https://blog.counter-strike.net/ro/2019/05/24208/)
-- [Valve: Economy-Änderungen Mai 2024](https://store.steampowered.com/news/posts/?appids=730&enddate=1716499920&feed=steam_community_announcements)
-- [Valve: CT-Prämie Juli 2025](https://store.steampowered.com/news/posts/?appids=730&enddate=1753835380&feed=steam_community_announcements)
-- [demoparser: mögliche Demo-Felder](https://github.com/LaihoE/demoparser)
-
-## Nächster Arbeitsschritt
-
-Ein reales Dataset oder wenige abgeschlossene CS2-Demos importieren, Regelprofil
-und tatsächliche Kaufphasen-Geldstände prüfen und eine erste nachvollziehbare
-Verteilung möglicher Gegnerzustände aus beobachtbaren Rundenereignissen erstellen.
-Danach Screenshot-Erkennung und ML gegen diese Basis evaluieren.
+- `docs/economy-prototype.md` beschreibt den ursprünglichen Economy-Prototyp (CLI
+  `evaluate` / `simulate` / `estimate`). Das Label baut auf dessen `evaluate` auf.
+- `tools/setup_hopsworks.py` legt das Hopsworks-Projekt an.

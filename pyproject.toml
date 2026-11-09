@@ -2,8 +2,18 @@
 name = "cs2-money-round"
 version = "0.1.0"
 description = "Explainable CS2 full-buy feasibility and economy simulation"
-requires-python = ">=3.11"
-dependencies = []
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "anthropic>=2.6.0",
+    "demoparser2==0.42.0",
+    "hopsworks[python]==5.1.*",
+    "joblib>=1.6.0",
+    "openai>=3.46.0",
+    "pandas>=2.3.3",
+    "pydantic>=2.14.3",
+    "python-dotenv>=1.2.4",
+    "scikit-learn>=1.9.1",
+]
 
 [project.scripts]
 cs2-money-round = "cs2_money_round.cli:main"
@@ -11,3 +21,7 @@ cs2-money-round = "cs2_money_round.cli:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"

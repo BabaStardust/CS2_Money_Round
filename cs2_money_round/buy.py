@@ -20,6 +20,12 @@ class BuyTarget:
             raise ValueError("helmet must be boolean")
 
 
+# Projektdefinition Full Buy (Owner, 09.11.2026): Rifle plus Kevlar mit Helm.
+# Neukauf: T $3.700 (AK + $1.000), CT $3.900 (M4 + $1.000). Gespeicherte Rifle
+# und vorhandene Rüstung mit Helm zählen, sie müssen nicht neu gekauft werden.
+FULL_BUY_TARGET = BuyTarget(helmet=True)
+
+
 def armor_cost(player: Player, target: BuyTarget, rules: Rules) -> int:
     cost = rules.kevlar_price if player.armor < target.min_armor else 0
     if target.helmet and not player.helmet:
