@@ -164,15 +164,18 @@ Tests: `uv run python -m unittest discover -s tests -v`
 
 ## Reflexion und Limitationen
 
-- **Hopsworks noch nicht live verifiziert.**
-  - Der Free Tier erlaubt ein Projekt pro Account. Das bestehende Konto trägt schon die
-    Lichess-Projektarbeit.
-  - Ein neuer Account liess sich am 09.11.2026 nicht anlegen: Die Registrierung hing in einer
-    Endlosschleife.
-  - Die Hopsworks-Anbindung (`cs2_money_round/store.py`, `HopsworksStore`) nutzt dieselben
-    Aufrufe wie die funktionierende Lichess-Arbeit.
-  - Alle drei Pipelines sind bisher nur mit `FEATURE_STORE=local` Ende-zu-Ende gelaufen.
-  - *Stand wird nachgeführt, sobald der Account steht.*
+- **Hopsworks.**
+  - Die Pipelines laufen seit 10.11.2026 Ende-zu-Ende gegen das Hopsworks-Projekt `cs2_ml`:
+    zwei Feature Groups, Feature Views `full_buy_fv` und `buy_rate_fv`, Modell
+    `full_buy_predictor` v1 in der Registry.
+  - Der Free Tier erlaubt ein Projekt pro Account. Darum läuft die Arbeit in einem eigenen
+    Account; dessen Registrierung hing am 09.11.2026 zuerst in einer Endlosschleife.
+  - Beim ersten Insert in die frisch angelegte Online-Feature-Group `buy_rate_history` blieb der
+    Online-Store leer, die Inferenz fand keine Kaufquote. Ein zweiter Insert füllte ihn. Die
+    Feature Pipeline wartet seither nach dem Insert, bis die Zeilen online sind, und schiebt
+    sie bei Bedarf einmal nach.
+  - Der Client ist `hopsworks` 5.1.2, das Backend 5.2.2. Hopsworks warnt deshalb bei jedem
+    Login; funktional gab es keine Probleme.
 - **Wenig Daten.**
   - Es sind 23 Matches aus einem Spielerkreis und mehrheitlich Nuke und Dust2.
   - Das Testset umfasst nur 5 Matches, die Metriken schwanken entsprechend.

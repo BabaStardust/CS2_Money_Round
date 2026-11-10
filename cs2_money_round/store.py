@@ -97,7 +97,27 @@ class HopsworksStore:
         )
 
     def insert(self, spec, df):
-        self._group(spec).insert(df, write_options={"wait_for_job": True})
+        fg = self._group(spec)
+        fg.insert(df, write_options={"wait_for_job": True})
+        if spec.online:
+            self._wait_online(fg, df, spec)
+
+    @staticmethod
+    def _wait_online(fg, df, spec, timeout_s: int = 300):
+        """Online-Ingestion läuft asynchron. Bei einer frisch angelegten Feature Group ging der
+        erste Insert (09./10.11.2026) nicht in den Online-Store; darum warten und einmal nachschieben."""
+        import time
+
+        deadline = time.monotonic() + timeout_s
+        retried = False
+        while time.monotonic() < deadline:
+            if len(fg.read(online=True)) >= len(df):
+                return
+            if not retried and time.monotonic() > deadline - timeout_s + 60:
+                fg.insert(df, write_options={"wait_for_job": True})
+                retried = True
+            time.sleep(10)
+        raise RuntimeError(f"{spec.name} v{spec.version}: Online-Store nach {timeout_s}s nicht befüllt")
 
     def read_group(self, spec, columns):
         return self.fs.get_feature_group(spec.name, version=spec.version).select(columns).read()
