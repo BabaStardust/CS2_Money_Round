@@ -23,6 +23,7 @@ class BuyTarget:
 # Projektdefinition Full Buy (Owner, 09.11.2026): Rifle plus Kevlar mit Helm.
 # Neukauf: T $3.700 (AK + $1.000), CT $3.900 (M4 + $1.000). Gespeicherte Rifle
 # und vorhandene Rüstung mit Helm zählen, sie müssen nicht neu gekauft werden.
+# Owner-Entscheid 10.11.2026: beschädigte Rüstung mit Helm gilt als ausgerüstet, muss nicht auf 100.
 FULL_BUY_TARGET = BuyTarget(helmet=True)
 
 

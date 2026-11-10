@@ -57,6 +57,11 @@ class BuyTests(unittest.TestCase):
             self.assertTrue(evaluate(team(minimum, side), target=FULL_BUY_TARGET)['full_buy_possible'])
             self.assertFalse(evaluate(team(minimum - 1, side), target=FULL_BUY_TARGET)['full_buy_possible'])
 
+    def test_project_full_buy_counts_damaged_armor_with_helmet(self):
+        # Owner-Entscheid 10.11.2026: beschädigte Rüstung + Helm muss nicht auf 100 aufgefüllt werden.
+        self.assertEqual(armor_cost(Player('p', 0, armor=1, helmet=True), FULL_BUY_TARGET, Rules()), 0)
+        self.assertTrue(evaluate(team(2700, 'T', armor=35, helmet=True), target=FULL_BUY_TARGET)['full_buy_possible'])
+
     def test_helmet_upgrade_and_damaged_armor(self):
         target = BuyTarget(helmet=True)
         self.assertEqual(armor_cost(Player('p', 0, armor=100), target, Rules()), 350)

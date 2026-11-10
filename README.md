@@ -46,7 +46,8 @@ alle fünf Spieler mit dem vorhandenen Geld eine Rifle (AK-47, M4A4 oder M4A1-S)
 Kevlar mit Helm haben können.
 
 - Ein Neukauf kostet T **$3'700** und CT **$3'900**.
-- Gespeicherte Rifles und Rüstung zählen mit.
+- Gespeicherte Rifles und Rüstung zählen mit. Beschädigte Rüstung mit Helm gilt als
+  ausgerüstet, sie muss nicht auf 100 aufgefüllt werden.
 - Spieler dürfen einander Waffen droppen, Rüstung aber nicht.
 
 Berechnet wird das von `cs2_money_round.buy.evaluate` mit `FULL_BUY_TARGET`. Pistolenrunden
