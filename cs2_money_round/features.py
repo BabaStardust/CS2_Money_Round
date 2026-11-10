@@ -146,4 +146,6 @@ def build_features(rounds: pd.DataFrame) -> pd.DataFrame:
     df[LABEL] = df[LABEL].astype(int)
     keys = ["match_id", "round_number", "team_side", "map_name", "match_time"]
     extra = ["gt_team_cash", "gt_min_cash", "gt_max_equipped_players", "post_rifle_armor_players"]
+    # Feste Ganzzahl-Typen mit Lücken: sonst wird eine Spalte mit NaN zu float und passt nicht zum FG-Schema.
+    df[extra] = df[extra].astype("Int64")
     return df[keys + FEATURES + [LABEL] + extra].reset_index(drop=True)

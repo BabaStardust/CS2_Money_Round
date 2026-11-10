@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from cs2_money_round.demo_import import _team_won
+from cs2_money_round.demo_import import _real_round_ends, _team_won
 from cs2_money_round.features import LABEL, compute_features, historical_rates, history_features
 from cs2_money_round.store import FeatureGroupSpec, FeatureViewSpec, LocalStore
 from cs2_money_round.vision.schema import PlayerReading, RoundResult, ScoreboardReading, TeamReading
@@ -69,6 +69,19 @@ class HalftimeTests(unittest.TestCase):
         self.assertTrue(_team_won(first_half_sides, {"1", "2"}, "T"))
         self.assertFalse(_team_won(first_half_sides, {"3"}, "T"))
         self.assertIsNone(_team_won(first_half_sides, {"9"}, "T"))
+
+    def test_pro_demo_round_ends_skip_empty_and_restarted_rounds(self):
+        # HLTV-Demos: leeres round_end bei Tick 0, Runde 2 nach Restart wiederholt.
+        ends = pd.DataFrame({
+            "tick": [0, 100, 200, 300, 400],
+            "winner": [None, "CT", "T", "CT", "T"],
+            "reason": [None, "t_killed", "ct_killed", "t_killed", "bomb_exploded"],
+            "total_rounds_played": [0, 1, 2, 2, 3],
+        })
+        real = _real_round_ends(ends)
+        self.assertEqual(real["tick"].tolist(), [100, 300, 400])
+        with self.assertRaises(ValueError):
+            _real_round_ends(ends[ends["tick"] != 300].assign(total_rounds_played=[0, 1, 3, 4]))
 
     def test_screenshot_history_flips_first_half_for_current_side(self):
         rounds = [RoundResult(round_number=i, winner="T", reason="elimination") for i in range(1, 13)]

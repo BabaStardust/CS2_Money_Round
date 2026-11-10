@@ -58,6 +58,21 @@ def _team_won(sides: dict, ids: set[str], winner: str) -> bool | None:
     return side == winner if side else None
 
 
+def _real_round_ends(ends: pd.DataFrame) -> pd.DataFrame:
+    """Rundenenden in Rundenreihenfolge, Index 0 = Runde 1.
+
+    Pro-Demos (HLTV) enthalten ein leeres ``round_end`` bei Tick 0 ohne Sieger, nach einem
+    ``mp_restartgame`` auch Rundenenden, die die Wiederholung ersetzt. Darum zählt nur das letzte
+    Ende mit Sieger je Rundennummer (``total_rounds_played`` nach dem Ende).
+    """
+    ends = ends[ends["winner"].isin(["T", "CT"])]
+    ends = ends.drop_duplicates("total_rounds_played", keep="last").sort_values("total_rounds_played")
+    numbers = ends["total_rounds_played"].astype(int).tolist()
+    if numbers != list(range(1, len(numbers) + 1)):
+        raise ValueError(f"Rundenenden nicht lückenlos 1..n: {numbers}")
+    return ends.reset_index(drop=True)
+
+
 def _decompressed(path: Path, workdir: Path) -> Path:
     if path.suffix != ".bz2":
         return path
@@ -76,7 +91,7 @@ def import_demo(path: Path, rules: Rules = Rules()) -> pd.DataFrame:
         header = parser.parse_header()
         starts = parser.parse_event("round_start", other=["total_rounds_played"])
         freeze_end = parser.parse_event("round_freeze_end", other=["total_rounds_played"])
-        ends = parser.parse_event("round_end")
+        ends = _real_round_ends(parser.parse_event("round_end", other=["total_rounds_played"]))
         deaths = parser.parse_event("player_death", player=["team_num"], other=["total_rounds_played"])
         plants = parser.parse_event("bomb_planted", other=["total_rounds_played"])
 
