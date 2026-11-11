@@ -5,6 +5,8 @@ Auswahl über Umgebungsvariablen (siehe ``.env.example``):
 - ``VISION_PROVIDER=anthropic`` → Claude über die Anthropic-API (``ANTHROPIC_API_KEY``)
 - ``VISION_PROVIDER=openai_compatible`` → lokales Modell mit OpenAI-kompatibler
   Schnittstelle (z. B. oMLX, LM Studio, Ollama), ``VISION_BASE_URL`` + optional ``VISION_API_KEY``
+- ``VISION_PROVIDER=claude_cli`` → Claude Code headless (Entwicklung ohne API-Key)
+- ``VISION_PROVIDER=granite`` → IBM Granite Vision lokal (``uv sync --extra granite``), siehe ``granite.py``
 
 Beide liefern ein validiertes :class:`ScoreboardReading`. Wer einen weiteren
 Anbieter braucht, implementiert ``read(image_bytes, media_type)``.
@@ -168,9 +170,21 @@ class ClaudeCliReader:
         return ScoreboardReading.model_validate(payload)
 
 
-def reader_from_env() -> VisionReader:
-    provider = os.environ.get("VISION_PROVIDER", "anthropic")
-    model = os.environ.get("VISION_MODEL", "claude-sonnet-5-5")
+PROVIDERS = {
+    "claude_cli": "Claude (Claude-Code-CLI)",
+    "anthropic": "Claude (Anthropic-API)",
+    "granite": "IBM Granite Vision 3.3 2B (lokal)",
+    "openai_compatible": "Lokales Modell (OpenAI-kompatibel)",
+}
+
+
+def make_reader(provider: str, model: str | None = None) -> VisionReader:
+    """Reader für einen Anbieter; ``model`` leer = Standard des Anbieters bzw. ``VISION_MODEL``."""
+    if provider == "granite":
+        from .granite import DEFAULT_MODEL, GraniteReader
+
+        return GraniteReader(model or DEFAULT_MODEL)
+    model = model or os.environ.get("VISION_MODEL", "claude-sonnet-5-5")
     if provider == "anthropic":
         return AnthropicReader(model)
     if provider == "claude_cli":
@@ -180,6 +194,67 @@ def reader_from_env() -> VisionReader:
     raise ValueError(f"Unbekannter VISION_PROVIDER: {provider}")
 
 
+def reader_from_env() -> VisionReader:
+    provider = os.environ.get("VISION_PROVIDER", "anthropic")
+    # VISION_MODEL gehört zum Standard-Anbieter; Granite hat einen eigenen Standard
+    model = os.environ.get("VISION_MODEL") if provider != "granite" else os.environ.get("GRANITE_MODEL")
+    return make_reader(provider, model)
+
+
+def enhance(reading: ScoreboardReading, image: bytes) -> ScoreboardReading:
+    """Bildanalyse ergänzt bzw. korrigiert die Lesung eines beliebigen Vision-Modells.
+
+    - Rundenhistorie aus der Symbolleiste (``history_bar``), wenn die Zahl der Runden zum
+      gelesenen Score passt; sie ersetzt dann die Historie des Modells.
+    - Hervorgehobene Zeile aus der Zeilenfarbe, wenn das Modell keine eindeutige geliefert hat.
+    Schlägt die Bildanalyse fehl, bleibt die Lesung des Modells unverändert.
+    """
+    import io
+
+    from PIL import Image
+
+    from .history_bar import _side_then, read_history
+    from .regions import highlighted_rows, locate_panel
+
+    img = Image.open(io.BytesIO(image)).convert("RGB")
+    panel, source = locate_panel(img)
+    notes = [f for f in reading.uncertain_fields if not f.startswith("round_history")]
+    rounds, bar_notes = read_history(img, panel)
+    scores = (reading.ct.score, reading.t.score)
+    if rounds:
+        # Score laut Leiste: Siege des Teams, das jetzt CT ist bzw. jetzt T ist
+        now = len(rounds) + 1
+        ct_now = sum(r.winner == _side_then("CT", now, r.round_number) for r in rounds)
+        bar_scores = (ct_now, len(rounds) - ct_now)
+        if scores != bar_scores and not bar_notes:
+            if None not in scores:
+                notes.append(f"score: Modell las {scores[0]}:{scores[1]}, "
+                             f"Symbolleiste ergibt {bar_scores[0]}:{bar_scores[1]} – Leiste gilt")
+            reading.ct.score, reading.t.score = bar_scores
+            scores = bar_scores
+    if rounds and len(rounds) == sum(s for s in scores if s is not None) and None not in scores:
+        reading.round_history = rounds
+        notes.append(f"round_history aus der Symbolleiste gelesen (Bildanalyse, Panel {source})")
+        notes.extend(bar_notes)
+    else:
+        notes.append(f"round_history: Symbolleiste ergab {len(rounds)} Runden, Score {scores} – Lesung des Modells bleibt")
+    players = reading.ct.players + reading.t.players
+    rows = highlighted_rows(img, panel)
+    if len(players) == 10 and len(rows) == 1 and sum(p.highlighted for p in players) != 1:
+        for i, p in enumerate(players):
+            p.highlighted = i == rows[0]
+        notes.append("highlighted aus der Zeilenfarbe bestimmt (Bildanalyse)")
+    reading.uncertain_fields = notes
+    return reading
+
+
+def read_image(
+    image: bytes, media_type: str, reader: VisionReader | None = None, use_image_analysis: bool = True
+) -> ScoreboardReading:
+    reading = (reader or reader_from_env()).read(image, media_type)
+    return enhance(reading, image) if use_image_analysis else reading
+
+
 def read_screenshot(path: str | Path, reader: VisionReader | None = None) -> ScoreboardReading:
     path = Path(path)
-    return (reader or reader_from_env()).read(path.read_bytes(), _media_type(path))
+    return read_image(path.read_bytes(), _media_type(path), reader)

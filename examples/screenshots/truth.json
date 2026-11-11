@@ -1,0 +1,62 @@
+{
+  "dust2_runde05_gegner-T.png": {
+    "map": "dust2",
+    "runde": 5,
+    "gegner": "T",
+    "score_ct_t": [
+      0,
+      4
+    ],
+    "historie_gegner": "WeWeWeWe",
+    "kills_gegner": 20,
+    "deaths_gegner": 10,
+    "full_buy_moeglich": true,
+    "teamgeld_gegner": 34550,
+    "min_geld_gegner": 5200
+  },
+  "dust2_runde15_gegner-CT.png": {
+    "map": "dust2",
+    "runde": 15,
+    "gegner": "CT",
+    "score_ct_t": [
+      7,
+      7
+    ],
+    "historie_gegner": "WeWeWeWeWbWbLeLeLeLdWeLeLbLe",
+    "kills_gegner": 44,
+    "deaths_gegner": 52,
+    "full_buy_moeglich": false,
+    "teamgeld_gegner": 18300,
+    "min_geld_gegner": 2650
+  },
+  "anubis_runde03_gegner-CT.png": {
+    "map": "anubis",
+    "runde": 3,
+    "gegner": "CT",
+    "score_ct_t": [
+      2,
+      0
+    ],
+    "historie_gegner": "WeWe",
+    "kills_gegner": 10,
+    "deaths_gegner": 4,
+    "full_buy_moeglich": true,
+    "teamgeld_gegner": 23900,
+    "min_geld_gegner": 4000
+  },
+  "anubis_runde21_gegner-T.png": {
+    "map": "anubis",
+    "runde": 21,
+    "gegner": "T",
+    "score_ct_t": [
+      8,
+      12
+    ],
+    "historie_gegner": "WeWeWeWdWeWeLeWeLeLeWdWeLeWeWeLdLdLeWeLe",
+    "kills_gegner": 78,
+    "deaths_gegner": 65,
+    "full_buy_moeglich": false,
+    "teamgeld_gegner": 15950,
+    "min_geld_gegner": 1950
+  }
+}
