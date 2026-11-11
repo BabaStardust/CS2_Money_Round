@@ -1,0 +1,10 @@
+{
+  "description": "Historische Quote 'Full Buy m\u00f6glich' je Seite und Loss-Bonus-Stufe \u00fcber alle Matches (f\u00fcr die Inferenz).",
+  "primary_key": [
+    "team_side",
+    "loss_bonus_level"
+  ],
+  "event_time": "updated_at",
+  "online": true,
+  "quelle": "hopsworks"
+}

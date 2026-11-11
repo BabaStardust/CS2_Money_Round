@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Full-Buy-Prognose</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar__inner">
+      <div class="brand">
+        <span class="brand__mark" aria-hidden="true"></span>
+        <div>
+          <p class="brand__kicker">CAS MLOps · Inferenz</p>
+          <h1 class="brand__title">CS2 Full-Buy-Prognose</h1>
+        </div>
+      </div>
+      <p class="status" id="status">Verbinde …</p>
+    </div>
+  </header>
+
+  <main class="page">
+    <p class="lead">
+      Kann das gegnerische Team diese Runde einen Full Buy kaufen – Rifle und Kevlar mit Helm für alle fünf
+      (T $3'700, CT $3'900)? Screenshot aus der Kaufphase hochladen oder die Werte von Hand eingeben.
+    </p>
+
+    <section class="source" aria-labelledby="h-source">
+      <div>
+        <h2 class="label" id="h-source">Featurestore und Modell für die Inferenz</h2>
+        <div class="segmented segmented--small" id="store" role="group" aria-labelledby="h-source"></div>
+      </div>
+      <p class="hint" id="store-info">Lade …</p>
+    </section>
+
+    <!-- 1 Eingabe -->
+    <section class="card" aria-labelledby="h-input">
+      <h2 class="card__title" id="h-input"><span class="step">1</span>Eingabe</h2>
+      <div class="segmented" role="tablist" aria-label="Eingabeart">
+        <button role="tab" id="tab-shot" aria-selected="true" aria-controls="panel-shot">Screenshot</button>
+        <button role="tab" id="tab-manual" aria-selected="false" aria-controls="panel-manual">Manuell</button>
+      </div>
+
+      <div id="panel-shot" role="tabpanel" aria-labelledby="tab-shot">
+        <label class="drop" id="drop">
+          <input type="file" id="file" accept="image/png,image/jpeg,image/webp">
+          <span class="drop__title">Screenshot wählen oder hierher ziehen</span>
+          <span class="drop__hint">PNG, JPEG oder WebP · Scoreboard (Tab) während der Kaufphase · Ausschnitt genügt, wenn das ganze Scoreboard drauf ist</span>
+        </label>
+
+        <div id="examples-wrap" class="examples-wrap" hidden>
+          <p class="label">oder ein Beispiel aus einer Demo</p>
+          <div class="examples" id="examples"></div>
+        </div>
+
+        <div class="row">
+          <label class="field">
+            <span class="label">Vision-Modell</span>
+            <select id="provider"></select>
+          </label>
+          <button class="btn btn--primary" id="btn-read" disabled>Screenshot auslesen</button>
+        </div>
+        <p class="progress" id="read-progress" hidden></p>
+
+        <div class="reading" id="reading" hidden>
+          <figure class="preview"><img id="preview" alt="Hochgeladener Screenshot"></figure>
+          <div>
+            <p class="label" id="reading-meta"></p>
+            <div class="teams" id="reading-teams"></div>
+            <ul class="notes" id="reading-notes"></ul>
+          </div>
+        </div>
+      </div>
+
+      <div id="panel-manual" role="tabpanel" aria-labelledby="tab-manual" hidden>
+        <p class="hint">Ohne Screenshot: In Schritt 2 Gegnerseite, Rundenverlauf sowie Kills und Deaths des Gegnerteams eintragen.</p>
+      </div>
+    </section>
+
+    <!-- 2 Werte -->
+    <section class="card" aria-labelledby="h-values">
+      <h2 class="card__title" id="h-values"><span class="step">2</span>Werte prüfen</h2>
+      <p class="hint">Alles aus Sicht des <strong>Gegnerteams</strong>. Werte aus dem Screenshot sind vorausgefüllt und lassen sich korrigieren.</p>
+
+      <div class="field">
+        <span class="label">Gegnerteam spielt aktuell</span>
+        <div class="segmented segmented--small" id="side">
+          <button data-side="CT" aria-pressed="false">CT</button>
+          <button data-side="T" aria-pressed="true">T</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field__head">
+          <span class="label">Bisherige Runden (Sieg oder Niederlage des Gegners, Grund)</span>
+          <span class="actions">
+            <button class="btn btn--ghost" id="round-remove" aria-label="Letzte Runde entfernen">− Runde</button>
+            <button class="btn btn--ghost" id="round-add" aria-label="Runde hinzufügen">+ Runde</button>
+          </span>
+        </div>
+        <ol class="rounds" id="rounds"></ol>
+        <label class="field field--inline">
+          <span class="label">Als Code</span>
+          <input id="history" class="mono" inputmode="text" autocomplete="off" spellcheck="false" placeholder="z. B. WeLbLeWd">
+        </label>
+        <p class="hint">W/L = Sieg/Niederlage des Gegners, danach der Grund: e = alle tot, b = Bombe, d = entschärft, t = Zeit, ? = unbekannt.</p>
+      </div>
+
+      <div class="row row--fields">
+        <label class="field">
+          <span class="label">Kills Gegnerteam (Summe)</span>
+          <input type="number" id="kills" min="0" max="999" inputmode="numeric">
+        </label>
+        <label class="field">
+          <span class="label">Deaths Gegnerteam (Summe)</span>
+          <input type="number" id="deaths" min="0" max="999" inputmode="numeric">
+        </label>
+      </div>
+
+      <p class="summary" id="summary"></p>
+      <button class="btn btn--primary btn--wide" id="btn-predict">Prognose berechnen</button>
+      <p class="error" id="predict-error" role="alert" hidden></p>
+    </section>
+
+    <!-- 3 Prognose -->
+    <section class="card" id="result" aria-labelledby="h-result" hidden>
+      <h2 class="card__title" id="h-result"><span class="step">3</span>Prognose</h2>
+      <div class="verdict" id="verdict">
+        <p class="verdict__prob" id="prob"></p>
+        <div>
+          <p class="verdict__text" id="verdict-text"></p>
+          <p class="verdict__sub" id="verdict-sub"></p>
+        </div>
+      </div>
+      <div class="meter" aria-hidden="true"><span id="meter"></span><i class="meter__mid"></i></div>
+      <ul class="notes" id="result-notes"></ul>
+
+      <div class="grid2">
+        <div>
+          <h3 class="subhead">RT-Features <small>erst im Moment bekannt</small></h3>
+          <table class="kv" id="rt"></table>
+        </div>
+        <div>
+          <h3 class="subhead">Aggregierte Features <small>über Runden bzw. Matches</small></h3>
+          <table class="kv" id="agg"></table>
+        </div>
+      </div>
+      <p class="meta" id="result-meta"></p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>Inferenz der FTI-Pipeline · Features aus dem Featurestore, Modell aus der Model Registry · Projektarbeit CAS MLOps</p>
+  </footer>
+  <script src="/static/app.js"></script>
+</body>
+</html>

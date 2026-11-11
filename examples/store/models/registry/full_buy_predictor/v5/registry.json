@@ -1,0 +1,19 @@
+{
+  "name": "full_buy_predictor",
+  "version": 5,
+  "metrics": {
+    "baseline_brier": 0.2373,
+    "roc_auc": 0.8279,
+    "baseline_accuracy": 0.6137,
+    "label_rate_test": 0.6137,
+    "accuracy": 0.7486,
+    "brier": 0.1644,
+    "log_loss": 0.4858,
+    "label_rate_train": 0.5984
+  },
+  "feature_view": {
+    "name": "full_buy_fv",
+    "version": 3
+  },
+  "quelle": "hopsworks"
+}

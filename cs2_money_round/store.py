@@ -218,10 +218,54 @@ class LocalStore:
         return ModelHandle(name, versions[-1], path, metrics)
 
 
-def store_from_env() -> Store:
-    kind = os.environ.get("FEATURE_STORE", "hopsworks")
+EXAMPLE_ROOT = ROOT / "examples" / "store"
+
+
+class ExampleStore(LocalStore):
+    """Mitgelieferter Schnappschuss im Repo (``examples/store``): neuestes Modell und die Feature Group
+    ``buy_rate_history`` aus Hopsworks, erzeugt mit ``tools/export_example_store.py``.
+
+    Nur lesen: Damit laufen Inference Pipeline und Web-App ohne Hopsworks-Zugang und ohne Demos.
+    """
+
+    kind = "example"
+
+    def __init__(self, root: Path = EXAMPLE_ROOT) -> None:
+        super().__init__(root)
+
+    def insert(self, spec, df):
+        raise PermissionError("Der Beispiel-Store ist schreibgeschützt – FEATURE_STORE=local oder hopsworks nutzen.")
+
+    def save_model(self, name, model_dir, metrics, description, input_example, view):
+        raise PermissionError("Der Beispiel-Store ist schreibgeschützt – FEATURE_STORE=local oder hopsworks nutzen.")
+
+
+STORE_KINDS = {
+    "example": "Beispiel im Repo",
+    "hopsworks": "Hopsworks",
+    "local": "Lokal (data/featurestore)",
+}
+
+
+def make_store(kind: str) -> Store:
     if kind == "hopsworks":
         return HopsworksStore()
     if kind == "local":
         return LocalStore()
-    raise ValueError(f"Unbekannter FEATURE_STORE: {kind} (hopsworks | local)")
+    if kind == "example":
+        return ExampleStore()
+    raise ValueError(f"Unbekannter FEATURE_STORE: {kind} (hopsworks | local | example)")
+
+
+def available_stores() -> list[str]:
+    """Stores, die in dieser Umgebung nutzbar sind (Beispiel immer, Hopsworks mit Key, lokal mit Daten)."""
+    out = ["example"] if (EXAMPLE_ROOT / "models" / "registry").is_dir() else []
+    if os.environ.get("HOPSWORKS_API_KEY"):
+        out.append("hopsworks")
+    if (ROOT / "data" / "featurestore").is_dir() and (ROOT / "models" / "registry").is_dir():
+        out.append("local")
+    return out
+
+
+def store_from_env() -> Store:
+    return make_store(os.environ.get("FEATURE_STORE", "hopsworks"))

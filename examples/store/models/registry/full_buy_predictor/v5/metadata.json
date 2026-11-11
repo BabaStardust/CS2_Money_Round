@@ -1,0 +1,70 @@
+{
+  "features": [
+    "round_in_half",
+    "is_ct",
+    "score_team",
+    "score_opp",
+    "prev_round_won",
+    "prev_reason_bomb",
+    "prev_reason_defuse",
+    "prev_reason_time",
+    "loss_streak",
+    "loss_bonus_level",
+    "wins_last_3",
+    "deaths_per_round",
+    "kill_death_diff",
+    "hist_full_buy_rate"
+  ],
+  "rt_features": [
+    "round_in_half",
+    "is_ct",
+    "score_team",
+    "score_opp",
+    "prev_round_won",
+    "prev_reason_bomb",
+    "prev_reason_defuse",
+    "prev_reason_time"
+  ],
+  "agg_features": [
+    "loss_streak",
+    "loss_bonus_level",
+    "wins_last_3",
+    "deaths_per_round",
+    "kill_death_diff",
+    "hist_full_buy_rate"
+  ],
+  "label": "full_buy_possible",
+  "metrics": {
+    "accuracy": 0.7486,
+    "roc_auc": 0.8279,
+    "log_loss": 0.4858,
+    "brier": 0.1644,
+    "baseline_accuracy": 0.6137,
+    "baseline_brier": 0.2373,
+    "label_rate_train": 0.5984,
+    "label_rate_test": 0.6137,
+    "n_train": 2174,
+    "n_test": 541,
+    "split_time": "2026-11-09T19:43:00Z"
+  },
+  "coefficients": {
+    "round_in_half": 0.2323,
+    "is_ct": 0.0595,
+    "score_team": -0.1092,
+    "score_opp": 0.0034,
+    "prev_round_won": 1.2407,
+    "prev_reason_bomb": 0.0588,
+    "prev_reason_defuse": 0.1581,
+    "prev_reason_time": -0.0679,
+    "loss_streak": 0.6597,
+    "loss_bonus_level": 0.9531,
+    "wins_last_3": 1.3744,
+    "deaths_per_round": 0.1515,
+    "kill_death_diff": 0.4551,
+    "hist_full_buy_rate": 0.4127
+  },
+  "feature_view": {
+    "name": "full_buy_fv",
+    "version": 3
+  }
+}
