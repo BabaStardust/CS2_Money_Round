@@ -5,7 +5,9 @@ from .store import FeatureGroupSpec, FeatureViewSpec
 
 ROUNDS_FG = FeatureGroupSpec(
     name="round_buy_state",
-    version=2,  # v1: 23 eigene Matches, gt_* als double; v2: + 13 HLTV-Pro-Maps, Int64-Typen
+    # v1: 23 eigene Matches, gt_* als double; v2: + HLTV-Pro-Maps, Int64-Typen;
+    # v3: Kills/Deaths nach Zeitpunkt gezählt (Tode nach dem Rundenende zählen wie auf dem Scoreboard)
+    version=3,
     description="Eine Zeile pro Team und Runde zu Beginn der Kaufphase (CS2-Demos): "
                 "RT-Features vom Scoreboard, aggregierte Features aus Rundenhistorie und früheren Matches, "
                 "Label full_buy_possible aus dem versteckten Geld/Equipment.",
@@ -24,7 +26,7 @@ RATES_FG = FeatureGroupSpec(
 
 TRAINING_FV = FeatureViewSpec(
     name="full_buy_fv",
-    version=2,
+    version=3,
     description="Features (RT + aggregiert) und Label full_buy_possible",
     group=ROUNDS_FG,
     columns=FEATURES,

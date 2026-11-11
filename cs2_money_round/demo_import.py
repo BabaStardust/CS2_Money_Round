@@ -78,6 +78,15 @@ def _without_coaches(state: pd.DataFrame) -> pd.DataFrame:
     return state[~state["name"].astype(str).str.lower().str.startswith("coach")]
 
 
+def _deaths_between(deaths: pd.DataFrame, start_tick: int, end_tick: int) -> pd.DataFrame:
+    """Tode mit ``start_tick <= tick < end_tick``.
+
+    Nach Zeitpunkt, nicht nach ``total_rounds_played``: Tode nach dem Rundenende (Bombe, Exit-Frags)
+    tragen schon die nächste Rundennummer, das Scoreboard zählt sie aber sofort mit.
+    """
+    return deaths[(deaths["tick"] >= start_tick) & (deaths["tick"] < end_tick)]
+
+
 def _decompressed(path: Path, workdir: Path) -> Path:
     if path.suffix != ".bz2":
         return path
@@ -114,6 +123,7 @@ def import_demo(path: Path, rules: Rules = Rules()) -> pd.DataFrame:
     # Spieler-Seiten je Rundenstart: nach der Halbzeit (und in der Overtime) wechseln die Teams die
     # Seite, darum werden Historie, Score und Kills über die Spieler-IDs zugeordnet, nicht über die Seite.
     start_by_round = dict(zip(starts["total_rounds_played"].astype(int), starts["tick"].astype(int)))
+    first_start = start_by_round[min(start_by_round)]
     sides_at = {
         r: dict(zip(state.loc[state["tick"] == t, "steamid"], state.loc[state["tick"] == t, "team_num"]))
         for r, t in start_by_round.items()
@@ -136,8 +146,10 @@ def import_demo(path: Path, rules: Rules = Rules()) -> pd.DataFrame:
             ids = set(team_snap["steamid"].astype(str))
             won = [_team_won(sides_at.get(i, {}), ids, ends.iloc[i]["winner"]) for i in range(played)]
             reasons = [REASON_MAP.get(r, "?") for r in ends["reason"].iloc[:played]]
-            before = deaths[deaths["total_rounds_played"] < played]
-            last = deaths[deaths["total_rounds_played"] == played - 1]
+            # ab Start von Runde 1: Aufwärm- und Messerrunden der Pro-Demos zählen nicht
+            before = _deaths_between(deaths, first_start, tick)
+            last = (_deaths_between(deaths, start_by_round[played - 1], tick)
+                    if played - 1 in start_by_round else deaths.iloc[0:0])
             score_team = sum(w is True for w in won)
             rounds_total = team_snap["team_rounds_total"].dropna()
             if len(rounds_total) and int(rounds_total.iloc[0]) != score_team:

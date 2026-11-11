@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from cs2_money_round.demo_import import _real_round_ends, _team_won, _without_coaches
+from cs2_money_round.demo_import import _deaths_between, _real_round_ends, _team_won, _without_coaches
 from cs2_money_round.features import LABEL, compute_features, historical_rates, history_features
 from cs2_money_round.store import FeatureGroupSpec, FeatureViewSpec, LocalStore
 from cs2_money_round.vision.schema import PlayerReading, RoundResult, ScoreboardReading, TeamReading
@@ -82,6 +82,13 @@ class HalftimeTests(unittest.TestCase):
         self.assertEqual(real["tick"].tolist(), [100, 300, 400])
         with self.assertRaises(ValueError):
             _real_round_ends(ends[ends["tick"] != 300].assign(total_rounds_played=[0, 1, 3, 4]))
+
+    def test_death_after_round_end_counts_like_scoreboard(self):
+        # Dust II R6: Bombe explodiert nach dem Rundenende, der Tod trägt schon total_rounds_played=6.
+        deaths = pd.DataFrame({"tick": [100, 35649, 35693, 36500], "total_rounds_played": [0, 5, 6, 6]})
+        before_r7 = _deaths_between(deaths, start_tick=120 - 50, end_tick=36097)  # Start R1 … Start R7
+        self.assertEqual(before_r7["tick"].tolist(), [100, 35649, 35693])
+        self.assertEqual(len(_deaths_between(deaths, 200, 36097)), 2)  # Aufwärmtod vor Start R1 fällt weg
 
     def test_pro_demo_coach_is_not_a_player(self):
         # Pro-Demos: Coach als sechster Eintrag im Team, sonst fehlt das Label (nur 5er-Teams).
