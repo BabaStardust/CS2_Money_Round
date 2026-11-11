@@ -73,6 +73,11 @@ def _real_round_ends(ends: pd.DataFrame) -> pd.DataFrame:
     return ends.reset_index(drop=True)
 
 
+def _without_coaches(state: pd.DataFrame) -> pd.DataFrame:
+    """Coaches stehen in Pro-Demos als sechster Eintrag im Team (Name ``Coach|…``, $0, tot) und spielen nicht."""
+    return state[~state["name"].astype(str).str.lower().str.startswith("coach")]
+
+
 def _decompressed(path: Path, workdir: Path) -> Path:
     if path.suffix != ".bz2":
         return path
@@ -102,7 +107,7 @@ def import_demo(path: Path, rules: Rules = Rules()) -> pd.DataFrame:
 
         start_ticks = starts["tick"].astype(int).tolist()
         post_ticks = [int(freeze_end.loc[r, "tick"]) for r in starts["total_rounds_played"] if r in freeze_end.index]
-        state = parser.parse_ticks(TICK_PROPS, ticks=start_ticks + post_ticks)
+        state = _without_coaches(parser.parse_ticks(TICK_PROPS, ticks=start_ticks + post_ticks))
 
     match_id = path.name.split(".")[0]
     ends = ends.reset_index(drop=True)

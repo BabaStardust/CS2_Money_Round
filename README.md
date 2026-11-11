@@ -18,10 +18,11 @@ Screenshot ──► Vision-Modell ──► RT + Match-Aggregate ────�
 - **Quellen:**
   - 23 eigene CS2-Matches (Premier, MR12) vom 16.10. bis 06.11.2026, zum Download angeboten
     auf Leetify (Links auf `replayNNN.valve.net`), als `.dem.bz2` gespeichert.
-  - 13 Maps aus sechs Pro-Serien (Best-of-3, CCT, European Pro League, NODWIN Clutch Series)
-    von HLTV, als RAR-Archive geladen und entpackt. HLTV hat sie am 10.11.2026 bereitgestellt.
-- **Stand:** 36 gespielte Maps auf 7 verschiedenen Karten (Ancient, Anubis, Cache, Dust2, Inferno, Mirage, Nuke).
-  Das ergibt 1'534 Team-Runden, davon 1'329 im Modellumfang (882 eigene, 447 Pro).
+  - 51 Maps aus 21 Pro-Serien (Best-of-3, CCT, ESL Challenger League, European Pro League,
+    NODWIN Clutch Series) von HLTV, als RAR-Archive geladen und entpackt. Gespielt bzw.
+    bereitgestellt wurden sie vom 08. bis 10.11.2026.
+- **Stand:** 74 gespielte Maps auf 7 verschiedenen Karten (Ancient, Anubis, Cache, Dust2, Inferno, Mirage, Nuke).
+  Das ergibt 3'096 Team-Runden, davon 2'715 im Modellumfang (882 eigene, 1'833 Pro).
 - **Parser:** [`demoparser2`](https://github.com/LaihoE/demoparser) 0.42.0. Pro Runde liest
   er den Zustand beim Event `round_start` (Beginn der Kaufphase) sowie Rundenende, Kills und
   Bomb-Plants.
@@ -56,7 +57,7 @@ Kevlar mit Helm haben können.
 
 Berechnet wird das von `cs2_money_round.buy.evaluate` mit `FULL_BUY_TARGET`. Pistolenrunden
 (1, 13), Overtime und Runden mit weniger als fünf Spielern sind ausgeschlossen. Die
-Label-Rate beträgt 60,6 % (eigene Matches 59,5 %, Pro-Maps 62,6 %).
+Label-Rate beträgt 60,1 % (eigene Matches 59,5 %, Pro-Maps 60,4 %).
 
 Gemeint ist, ob ein Full Buy *möglich* ist, nicht ob er tatsächlich gekauft wurde. In den
 eigenen Matches enden nur 17,5 % der Team-Runden mit möglichem Full Buy die Kaufphase mit fünf Rifles und Rüstung, weil
@@ -91,21 +92,21 @@ Geglättet wird mit einem Prior von 50 % und dem Gewicht von 10 Runden.
 Das Modell ist eine logistische Regression mit Standardisierung (scikit-learn). Sie liefert
 eine kalibrierte Wahrscheinlichkeit, die die Inferenz als Konfidenz ausgibt.
 
-Die Daten sind zeitlich nach ganzen Maps geteilt: Train sind die 28 ältesten (1'040 Zeilen:
-alle 23 eigenen Matches und 5 Pro-Maps), Test die 8 neuesten (289 Zeilen, alles Pro-Maps).
-Das ist `full_buy_predictor` v3 in der Registry.
+Die Daten sind zeitlich nach ganzen Maps geteilt: Train sind die 58 ältesten (2'174 Zeilen:
+alle 23 eigenen Matches und 35 Pro-Maps), Test die 16 neuesten (541 Zeilen, alles Pro-Maps).
+Das ist `full_buy_predictor` v4 in der Registry.
 
 | Metrik (Test) | Modell | Baseline |
 |---|---|---|
-| Accuracy | 0,727 | 0,633 (immer «möglich») |
-| ROC-AUC | 0,824 | 0,5 |
-| Brier Score | 0,166 | 0,234 (Train-Rate als Konstante) |
+| Accuracy | 0,732 | 0,614 (immer «möglich») |
+| ROC-AUC | 0,827 | 0,5 |
+| Brier Score | 0,166 | 0,237 (Train-Rate als Konstante) |
 
 Ein Gegencheck ausserhalb der Pipeline: Nur auf den 23 eigenen Matches trainiert und auf allen
-13 Pro-Maps getestet, erreicht das Modell ROC-AUC 0,822 und Accuracy 0,749 (Baseline 0,626).
+51 Pro-Maps getestet, erreicht das Modell ROC-AUC 0,820 und Accuracy 0,748 (Baseline 0,604).
 Das Muster der Economy überträgt sich also von Premier-Matches auf Pro-Matches.
 
-Die stärksten Koeffizienten sind `prev_round_won`, `wins_last_3` und `loss_bonus_level`.
+Die stärksten Koeffizienten sind `wins_last_3`, `prev_round_won` und `loss_bonus_level`.
 `hist_full_buy_rate` trägt wenig bei, weil die Loss-Bonus-Stufe dieselbe Information schon
 grossteils enthält. Das Feature bleibt drin, weil es den Weg «aggregiertes Feature aus dem
 Featurestore bei der Inferenz» zeigt.
@@ -177,21 +178,24 @@ Tests: `uv run python -m unittest discover -s tests -v`
 - **Hopsworks.**
   - Die Pipelines laufen seit 10.11.2026 Ende-zu-Ende gegen das Hopsworks-Projekt `cs2_ml`:
     Feature Groups `round_buy_state` v2 und `buy_rate_history` v1, Feature Views
-    `full_buy_fv` v2 und `buy_rate_fv` v1, Modell `full_buy_predictor` v3 in der Registry.
+    `full_buy_fv` v2 und `buy_rate_fv` v1, Modell `full_buy_predictor` v4 in der Registry.
   - `round_buy_state` v1 (nur eigene Matches) hatte für die `gt_*`-Spalten den Typ double
     gespeichert; mit den Pro-Demos wurden sie Ganzzahlen und passten nicht mehr. Darum gibt es
-    v2 mit festen Typen. v1 und die Modelle v1/v2 bleiben als ältere Versionen stehen.
+    v2 mit festen Typen. v1 und die Modelle v1 bis v3 bleiben als ältere Versionen stehen.
   - Der Free Tier erlaubt ein Projekt pro Account. Darum läuft die Arbeit in einem eigenen
     Account; dessen Registrierung hing am 09.11.2026 zuerst in einer Endlosschleife.
   - Beim ersten Insert in die frisch angelegte Online-Feature-Group `buy_rate_history` blieb der
     Online-Store leer, die Inferenz fand keine Kaufquote. Ein zweiter Insert füllte ihn. Die
     Feature Pipeline wartet seither nach dem Insert, bis die Zeilen online sind, und schiebt
     sie bei Bedarf einmal nach.
+  - Am 10.11.2026 brach ein Upsert in `buy_rate_history` einmal mit einem HDFS-Lesefehler
+    auf Hopsworks-Seite ab (`Generic HdfsObjectStore error`). Ein zweiter Lauf der Feature
+    Pipeline ging durch; dank Cache und Upsert ist ein erneuter Lauf gefahrlos.
   - Der Client ist `hopsworks` 5.1.2, das Backend 5.2.2. Hopsworks warnt deshalb bei jedem
     Login; funktional gab es keine Probleme.
 - **Wenig Daten.**
-  - Es sind 36 Maps: 23 eigene Matches aus einem Spielerkreis und 13 Pro-Maps.
-  - Das Testset umfasst nur 8 Maps, die Metriken schwanken entsprechend.
+  - Es sind 74 Maps: 23 eigene Matches aus einem Spielerkreis und 51 Pro-Maps.
+  - Das Testset umfasst 16 Maps, die Metriken schwanken entsprechend.
   - Weil der Split zeitlich ist, besteht das Testset nur aus Pro-Maps. Der Test misst also
     zugleich die Übertragung von Premier- auf Pro-Matches.
   - Maps derselben Best-of-3-Serie haben dieselben Teams und können auf beiden Seiten des
@@ -199,7 +203,10 @@ Tests: `uv run python -m unittest discover -s tests -v`
 - **HLTV-Demos brauchten eine Korrektur im Import.** Pro-Demos enthalten ein leeres
   Rundenende bei Tick 0 ohne Sieger, dadurch waren alle Runden um eins verschoben. Der Import
   ordnet Rundenenden jetzt über die Rundennummer zu und bricht ab, wenn die Nummern Lücken
-  haben. Alle 36 Demos stimmen mit `team_rounds_total` überein.
+  haben. Alle 74 Demos stimmen mit `team_rounds_total` überein.
+- **Coaches in Pro-Demos.** In einigen Pro-Demos steht der Coach als sechster Eintrag im Team
+  (Name `Coach|…`, $0, tot). Dadurch fehlte zuerst das Label für ganze Maps (nur Fünferteams
+  werden bewertet). Der Import filtert Coaches jetzt heraus.
 - **«Möglich» ≠ «gekauft».** Für die eigene Taktik zählt, ob der Gegner kaufen *kann*. Ob er
   tatsächlich kauft, sagt das Modell nicht vorher.
 - **Rundenhistorie auf dem Screenshot.**

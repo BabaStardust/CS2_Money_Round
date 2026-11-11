@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from cs2_money_round.demo_import import _real_round_ends, _team_won
+from cs2_money_round.demo_import import _real_round_ends, _team_won, _without_coaches
 from cs2_money_round.features import LABEL, compute_features, historical_rates, history_features
 from cs2_money_round.store import FeatureGroupSpec, FeatureViewSpec, LocalStore
 from cs2_money_round.vision.schema import PlayerReading, RoundResult, ScoreboardReading, TeamReading
@@ -82,6 +82,11 @@ class HalftimeTests(unittest.TestCase):
         self.assertEqual(real["tick"].tolist(), [100, 300, 400])
         with self.assertRaises(ValueError):
             _real_round_ends(ends[ends["tick"] != 300].assign(total_rounds_played=[0, 1, 3, 4]))
+
+    def test_pro_demo_coach_is_not_a_player(self):
+        # Pro-Demos: Coach als sechster Eintrag im Team, sonst fehlt das Label (nur 5er-Teams).
+        state = pd.DataFrame({"name": ["ragga", "Coach|BERRY", "coach_x", "zewts"], "team_num": [2, 3, 2, 3]})
+        self.assertEqual(_without_coaches(state)["name"].tolist(), ["ragga", "zewts"])
 
     def test_screenshot_history_flips_first_half_for_current_side(self):
         rounds = [RoundResult(round_number=i, winner="T", reason="elimination") for i in range(1, 13)]
